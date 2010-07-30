@@ -6,6 +6,16 @@
 #include <boost/noncopyable.hpp>
 #include <boost/random.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/foreach.hpp>
+#include <boost/utility.hpp>
+
+
+
+template<typename rnd>
+uint64_t rand64(rnd& random){
+  return (static_cast<uint64_t>(random()) << 32) |
+    static_cast<uint64_t>(random());
+}
 
 
 template<typename Derived>
@@ -35,7 +45,7 @@ struct membership_vector{
   enum length{
     vectormax = 64,
   };
-  membership_vector(uint64_t v):vector(v){}
+  membership_vector(uint64_t v):vector(v){} // not explicit!
   membership_vector():vector(0){}
   membership_vector(const membership_vector& org):vector(org.vector){}
 
@@ -43,7 +53,7 @@ struct membership_vector{
     const uint64_t matched = ~(vector ^ o.vector);
     uint64_t bit = 1;
     int cnt = 0;
-    while((matched & bit) && cnt < 64){
+    while((matched & bit) && cnt < vectormax){
       bit *= 2;
       cnt++;
     }
@@ -61,7 +71,6 @@ struct membership_vector{
   bool operator<(const membership_vector& rhs)const{
     return vector < rhs.vector;
   }
-  
 };
 
 struct key{
@@ -69,18 +78,45 @@ struct key{
   std::vector<int> left_;
   std::vector<int> right_;
   membership_vector mv;
+  key(){
+    left_.reserve(64);
+    left_.reserve(64);
+  };
   explicit key(const int& k,const membership_vector& m)
-    :key_(k),mv(m){}
+    :key_(k),left_(64,-1),right_(64,-1),mv(m){}
+  key(const key& o)
+    :key_(o.key_),left_(o.left_),right_(o.right_),mv(o.mv){
+    left_.reserve(64);
+    left_.reserve(64);
+  }
   bool operator<(const key& rhs)const{
     return key_ < rhs.key_;
   }
   bool operator==(const key& rhs)const{
     return key_ == rhs.key_;
   }
+  void dump()const{
+    fprintf(stderr,"[key:%d with mv:",key_);
+    mv.dump();
+    fprintf(stderr,"]");
+  }
+  void dump_lr(int level)const{
+    assert(level > 0);
+    fprintf(stderr,"[");
+    for(int i=level-1;i>=0;i--){
+      fprintf(stderr," l%d:%d ",i,left_[i]);
+    }
+    fprintf(stderr,"[%d]",key_);
+    for(int i=0;i<level;i++){
+      fprintf(stderr," r%d:%d ",i,right_[i]);
+    }
+    fprintf(stderr,"]");
+  }
 };
 
 struct node{
-  std::vector<key> keys_;
+  typedef std::vector<key> key_list;
+  key_list keys_;
   membership_vector vector_range_begin_;
   membership_vector vector_range_end_;
   explicit node(const membership_vector& r):vector_range_begin_(r){}
@@ -90,22 +126,41 @@ struct node{
   bool operator==(const node& rhs)const{
     return vector_range_begin_ == rhs.vector_range_begin_;
   }
-  key& get_key(const key& k){
-    std::vector<key>::iterator it = 
-      std::find(keys_.begin(),keys_.end(),k);
-    assert(it != keys_.end());
-    return *it;
+  const key& get_key(const key& k){
+    //std::find(keys_.begin(),keys_.end(),k);
+    for(size_t i =0;i<keys_.size(); i++){
+      if(keys_[i] == k){return keys_[i];}
+    }
+    assert(false);
+  }
+  key* add_key(const key& k){
+    keys_.push_back(k);
+    sort(keys_.begin(),keys_.end());
+  }
+  void key_dump()const{
+    BOOST_FOREACH(const key& k, keys_){
+      k.dump();
+    }
+  }
+  void range_dump()const{
+    vector_range_begin_.dump();
+    std::cerr << "----";
+    vector_range_end_.dump();
   }
 };
 
 struct global_nodes{
-  std::vector<node> nodes;
-  std::map<key,node> keys;
-  void set_nodes(size_t targets, boost::mt19937& rnd){
+  typedef std::vector<node> node_list;
+  typedef std::map<key,const node*> key_map;
+  node_list nodes;
+  key_map keys;
+  boost::mt19937 rand;
+  global_nodes(int seed):rand(seed){}
+  void set_nodes(size_t targets){
     while(nodes.size() < targets){
       const int targetsize = targets - nodes.size();
       for(int i=0; i<targetsize ;i++){
-	nodes.push_back(node(rnd()));
+	nodes.push_back(node(rand64(rand)));
       }
       sort(nodes.begin(),nodes.end());
       unique(nodes.begin(),nodes.end());
@@ -115,51 +170,86 @@ struct global_nodes{
     for(size_t i=0; i<nodes.size()-1; i++){
       nodes[i].vector_range_end_ = nodes[i+1].vector_range_begin_;
     }
-    nodes[nodes.size()-1].vector_range_end_ = 0;
+    nodes.rbegin()->vector_range_end_ = 0;
   }
-  void put_key(const key& newkey, int max_level){
-    membership_vector tmpvec = newkey.mv;
-    node tmpnode(tmpvec);
-    std::vector<node>::iterator it =
-      lower_bound(nodes.begin(),nodes.end(),tmpnode);
-    it->keys_.push_back(newkey);
-    
-    // left hand side
-    std::map<key,node>::iterator left =
-      keys.lower_bound(newkey);
-    int targetlevel = 0;
-    while(left != keys.end() && targetlevel < max_level){
-      key& targetkey = left->second.get_key(left->first);
-      int matches = newkey.mv.match(targetkey.mv);
-      std::cout << matches << std::endl;
-      while(targetlevel < matches){
-	targetkey.right_[targetlevel] = newkey.key_;
-	//	targetlevel++;
+  void put_key(const key& newkey, uint64_t putnode){
+    node_list::iterator target_node =
+      lower_bound(nodes.begin(),nodes.end(),node(putnode));
+    if(target_node != nodes.begin() && target_node != nodes.end()){target_node--;}
+    if(target_node == nodes.end()){target_node = --nodes.end();}
+    target_node->add_key(newkey);
+    refresh_keymap();
+  }
+  void refresh_keymap(){
+    key_map tmpmap;
+    BOOST_FOREACH(const node& n, nodes){
+      BOOST_FOREACH(const key& k, n.keys_){
+	tmpmap.insert(std::make_pair(k,&n));
       }
     }
-    keys.insert(std::make_pair(newkey,*it));
+    
+    for(key_map::iterator kn = tmpmap.begin(); kn != tmpmap.end(); ++kn){
+      key& k =  const_cast<key&>(kn->first);
+      key_map::iterator it = boost::next(kn);
+      if(it == tmpmap.end()) break;
+      for(int i=0; i<64;){
+	key& rkn = const_cast<key&>(it->first);
+	int matched = k.mv.match(rkn.mv);
+	while(matched >= i){
+	  k.right_[i] = rkn.key_;
+	  rkn.left_[i] = k.key_;
+	  ++i;
+	}
+	
+	++it;
+	
+	if(it == tmpmap.end()){break;}
+      }
+    }
+    keys = tmpmap;
   }
-  void dump(size_t maxlevel)const{
+  void dumpkeys(size_t maxlevel)const{
+    typedef std::pair<key, const node*> kn;
+    BOOST_FOREACH(const kn& knp, keys){
+      knp.first.dump_lr(maxlevel);
+      std::cerr << std::endl;
+    }
+  }
+  void node_dump()const{
+    std::vector<std::string> lines;
+    node_list::const_iterator it = nodes.begin();
+    BOOST_FOREACH(const node& n, nodes){
+      n.range_dump();
+      std::cerr << " ";
+      n.key_dump();
+      std::cerr << std::endl;
+    }
+  }
+  void dump(const size_t maxlevel)const{
     std::vector<std::string> lines; // 1=level0 / 2,3=level1 / 4,5,6,7=level2
-    lines.reserve(1 << maxlevel);
-    std::map<key,node>::const_iterator it
-      = keys.begin();
-    while(it != keys.end()){
-      for(size_t i=0; i<lines.size(); i++){
-	lines[i] += "===";
+    int linemax = 1 << maxlevel;
+    lines.reserve(linemax);
+    std::vector<int> rightlist(linemax,-1);
+    
+    typedef std::pair<key, const node*> kn;
+    BOOST_FOREACH(const kn& k, keys){
+      for(int i=0; i<linemax; i++){
+	if(rightlist[i] == k.first.key_){
+	  std::string buf;
+	  buf.reserve(16);
+	  sprintf(&buf[0],"[%d]",k.first.key_);
+	  lines[i].append(buf);
+	}else if(rightlist[i] == -1){
+	  lines[i].append("   ");
+	}else{
+	  lines[i].append("===");
+	}
       }
     }
-    
-    for(int i=lines.size()-1; i>=0; i--){
-      std::cout << lines[i] << std::endl;
+    BOOST_FOREACH(const std::string& s, lines){
+      std::cerr << s << std::endl;
     }
   }
   
   
 };
-
-template<typename rnd>
-uint64_t rand64(rnd& random){
-  return (static_cast<uint64_t>(random()) << 32) ||
-    static_cast<uint64_t>(random());
-}

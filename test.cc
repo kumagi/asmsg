@@ -19,7 +19,12 @@ TEST(set_nodes,1){
   world.set_nodes(3, rand);
   EXPECT_EQ(world.nodes.size(),3);
 }
-int main(int argc, char* argv[]){
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+
+TEST(set_nodes,2){
+  boost::mt19937 rand(0);
+  global_nodes world;
+  world.set_nodes(3, rand);
+  world.put_key(key(3,rand64(rand)), 3);
+  world.put_key(key(3,rand64(rand)), 5);
+  EXPECT_EQ(5,world.nodes[0].keys_[0].right_[0]);
 }

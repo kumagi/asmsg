@@ -33,14 +33,22 @@ int main(int argc, char** argv){
     }
     assert(c.nodes > 0);
   }
-  c.dump();
+  c.dump(); // setting dump
   
-  global_nodes world;
-  world.set_nodes(c.nodes,c.rand);
-  
-  for(size_t i=0; i<c.keys; i++){
-    key newkey(rand(),membership_vector(rand64(c.rand)));
-    world.put_key(newkey,c.vector_len);
+  int seed = 0;
+  global_nodes world(seed);
+  world.set_nodes(c.nodes);
+  boost::mt19937 wrand;
+  for(int i=0;i<1;i++){
+    world.put_key(key(i,rand64(wrand)),rand64(wrand));
   }
-  
+  world.dump(4);
+  /*
+  world.put_key(key(3,rand64(rand)), 3);
+  world.dumpkeys(3);
+  std::cout << "3 inserted" << std::endl;
+  world.put_key(key(5,rand64(rand)), 3);
+  world.dumpkeys(3);
+  std::cout << "5 inserted" << std::endl;
+  */
 }
