@@ -126,6 +126,8 @@ struct node{
   membership_vector vector_range_begin_;
   membership_vector vector_range_end_;
   explicit node(const membership_vector& r):vector_range_begin_(r){}
+  explicit node(const membership_vector& b,const membership_vector& e)
+    :vector_range_begin_(b),vector_range_end_(e){}
   bool operator<(const node& rhs)const{
     return vector_range_begin_ < rhs.vector_range_begin_;
   }
@@ -152,25 +154,25 @@ struct node{
     assert(targetkey != keys_.end());
     *targetkey = k;
   }
-  int count_hops_to_reach(int level,const int k)const{
+  int next_key(int level, int target)const{
     key_list::const_iterator lower = 
-      std::lower_bound(keys_.begin(),keys_.end(),key(k));
+      std::lower_bound(keys_.begin(),keys_.end(),key(target));
     if(lower == keys_.end()){lower = keys_.begin();}
     
-    if(*lower == key(k)) return 0;
+    if(*lower == key(target)) return -1;
     
     key_list::const_reverse_iterator upper = 
-      std::lower_bound(keys_.rbegin(),keys_.rend(),key(k));
+      std::lower_bound(keys_.rbegin(),keys_.rend(),key(target));
     if(upper == keys_.rend()){upper = keys_.rbegin();}
     
-    if(std::abs(lower->key_ - k) <= std::abs(upper->key_ - k)){
-      while(level > 0 && k < lower->right_[level])level--;
+    if(std::abs(lower->key_ - target) <= std::abs(upper->key_ - target)){
+      while(level > 0 && target < lower->right_[level])level--;
       assert(level != -1);
-      return count_hops_to_reach(level,lower->right_[level]) + 1;
+      return lower->right_[level];
     }else{
-      while(level > 0 && k < upper->left_[level])level--;
+      while(level > 0 && lower->left_[level] < target)level--;
       assert(level != -1);
-      return count_hops_to_reach(level,upper->left_[level]) + 1;
+      return lower->left_[level];
     }
   }
   void key_dump(int maxlevel)const{
@@ -205,20 +207,41 @@ struct global_nodes{
     std::vector<key> allkey;
     { // create keylist
       typedef std::pair<key,const node*> kn;
+      allkey.reserve(keys.size());
       BOOST_FOREACH(kn k, keys){
 	allkey.push_back(k.first);
       }
     }
-    std::vector<int> hops;
-    std::vector<int> counter;
+    std::vector<double> hops;
+    //std::vector<int> counter;
+    int cnt = 0;
     BOOST_FOREACH(const node& from, nodes){
       if(from.empty())continue;
-      std::vector<int> hops;
-      
+      int sum=0;
+      std::cout << "node " << std::hex << from.vector_range_begin_.vector << std::endl;
       BOOST_FOREACH(const key& target, allkey){
-	hops.push_back(from.count_hops_to_reach(maxlevel,target.key_));
+	const node* fromnode = &from;
+	int hop = 0;
+	std::cout <<  "=> " << target.key_ << " : ";
+	while(1){
+	  int next = fromnode->next_key(maxlevel,target.key_);
+	  if(next == -1) break;
+	  std::cout << " -> " << next;
+	  hop++;
+	  fromnode = &which_node(next);
+	}
+ 	sum+=hop;
+	std::cout << std::endl;
       }
+      hops.push_back(static_cast<double>(sum) / allkey.size());
+      cnt++;
       
+      //fprintf(stderr,"\rhop accumurate: %.1lf pct.",
+      //	      static_cast<double>(cnt) * 100 / nodes.size());
+    }
+    //    fprintf(stderr,"\r");
+    BOOST_FOREACH(const double& h, hops){
+      std::cout << "hop:" << h << std::endl;
     }
   }
 private:

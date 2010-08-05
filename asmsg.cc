@@ -21,11 +21,11 @@ int main(int argc, char** argv){
     opt.add_options()
       ("help,h", "display this help")
       ("nodes,n", po::value<size_t>
-       (&c.nodes)->default_value(100), "node quontum")
+       (&c.nodes)->default_value(4), "node quontum")
       ("keys,k", po::value<size_t>
-       (&c.keys)->default_value(21), "key number")
+       (&c.keys)->default_value(4), "key number")
       ("level,l", po::value<size_t>
-       (&c.level)->default_value(8), "max level")
+       (&c.level)->default_value(1), "max level")
       ("graph,g", "draw graph")
       ("seed,s", po::value<int>
        (&c.seed)->default_value(time(0)), "random seed");
@@ -53,9 +53,10 @@ int main(int argc, char** argv){
   }
   world.refresh_keymap(c.level);
   //world.dump(c.level);
-  //world.node_dump(2);
+  world.node_dump(c.level);
   //world.count_neighbor(10);
   if(c.graph){
     world.dump(c.level);
   }
+  world.count_average_hop(c.level);
 }
