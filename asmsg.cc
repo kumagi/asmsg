@@ -5,6 +5,7 @@
 #include <boost/program_options.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/random.hpp>
+#include <algorithm>
 #include "asmsg.hpp"
 
 
@@ -18,12 +19,16 @@ int main(int argc, char** argv){
     po::options_description opt("options");
     std::string master;
     opt.add_options()
+      ("help,h", "display this help")
       ("nodes,n", po::value<size_t>
-       (&c.nodes)->default_value(10), "node number")
+       (&c.nodes)->default_value(100), "node quontum")
       ("keys,k", po::value<size_t>
-       (&c.keys)->default_value(100), "key number")
-      ("vector,v", po::value<size_t>
-       (&c.vector_len)->default_value(32), "key number");
+       (&c.keys)->default_value(21), "key number")
+      ("level,l", po::value<size_t>
+       (&c.level)->default_value(8), "max level")
+      ("graph,g", "draw graph")
+      ("seed,s", po::value<int>
+       (&c.seed)->default_value(time(0)), "random seed");
     po::variables_map vm;
     store(parse_command_line(argc,argv,opt), vm);
     notify(vm);
@@ -31,24 +36,26 @@ int main(int argc, char** argv){
       std::cout << opt << std::endl;
       return 0;
     }
+    if(vm.count("graph")){
+      c.graph = true;
+    }
     assert(c.nodes > 0);
+    assert(c.level < 64);
   }
-  c.dump(); // setting dump
+  //c.dump(); // setting dump 
   
-  int seed = 0;
+  int seed = 3;
   global_nodes world(seed);
   world.set_nodes(c.nodes);
-  boost::mt19937 wrand;
-  for(int i=0;i<1;i++){
+  boost::mt19937 wrand(c.seed);
+  for(size_t i=0;i<c.keys;i++){
     world.put_key(key(i,rand64(wrand)),rand64(wrand));
   }
-  world.dump(4);
-  /*
-  world.put_key(key(3,rand64(rand)), 3);
-  world.dumpkeys(3);
-  std::cout << "3 inserted" << std::endl;
-  world.put_key(key(5,rand64(rand)), 3);
-  world.dumpkeys(3);
-  std::cout << "5 inserted" << std::endl;
-  */
+  world.refresh_keymap(c.level);
+  //world.dump(c.level);
+  //world.node_dump(2);
+  //world.count_neighbor(10);
+  if(c.graph){
+    world.dump(c.level);
+  }
 }

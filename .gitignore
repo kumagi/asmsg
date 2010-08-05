@@ -1,0 +1,7 @@
+profile*
+gmon.out
+*.o
+*~
+profile*
+asmsg
+test
