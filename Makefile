@@ -10,8 +10,8 @@ WARNS= -W -Wall -Wextra -Wformat=2 -Wstrict-aliasing=4 -Wcast-qual -Wcast-align 
 NOTIFY=&& notify-send Test success! -i ~/themes/ok_icon.png || notify-send Test failed... -i ~/themes/ng_icon.png
 SRCS=$(HEADS) $(BODYS)
 
-target:asmsg
-#target:test_do
+#target:asmsg
+target:test_do
 
 test_do:test
 	./test $(NOTIFY)
@@ -26,8 +26,8 @@ asmsg_impl.o:asmsg_impl.cc
 	$(CXX) -c asmsg_impl.cc $(OPTS) -o $@ $(WARNS) 
 
 
-test:test.o gtest_main.a
-	$(CXX) $(GTEST_INC) $^ -o $@ $(WARNS)  $(OPTS)
+test:test.o gtest_main.a asmsg_impl.o
+	$(CXX) $(GTEST_INC) $^ -o $@ $(WARNS)  $(OPTS) $(TEST_LD)
 
 test.o:test.cc
 	$(CXX) -c test.cc -o $(OPTS) $(WARNS) -o $@

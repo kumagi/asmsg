@@ -12,7 +12,7 @@
 
 int main(int argc, char** argv){
   config& c = config::instance();
-  
+  //exit(0);
   // parse options
   {
     namespace po = boost::program_options;
@@ -21,11 +21,12 @@ int main(int argc, char** argv){
     opt.add_options()
       ("help,h", "display this help")
       ("nodes,n", po::value<size_t>
-       (&c.nodes)->default_value(4), "node quontum")
+       (&c.nodes)->default_value(20), "node quontum")
       ("keys,k", po::value<size_t>
-       (&c.keys)->default_value(4), "key number")
+       (&c.keys)->default_value(20), "key number")
       ("level,l", po::value<size_t>
-       (&c.level)->default_value(1), "max level")
+       (&c.level)->default_value(8), "max level")
+      ("dump,d", "node-key map dump")
       ("graph,g", "draw graph")
       ("seed,s", po::value<int>
        (&c.seed)->default_value(time(0)), "random seed");
@@ -36,27 +37,35 @@ int main(int argc, char** argv){
       std::cout << opt << std::endl;
       return 0;
     }
-    if(vm.count("graph")){
-      c.graph = true;
+    
+    if(vm.count("graph")){c.graph = true;}
+    if(vm.count("dump")){c.nodedump = true;}
+    if(c.keys < c.nodes){
+      std::cerr << "key quantum must be larger than node quantum." << std::endl;
+      exit(0);
     }
     assert(c.nodes > 0);
     assert(c.level < 64);
   }
   //c.dump(); // setting dump 
   
-  int seed = 3;
+  int seed = c.seed;
   global_nodes world(seed);
   world.set_nodes(c.nodes);
   boost::mt19937 wrand(c.seed);
-  for(size_t i=0;i<c.keys;i++){
-    world.put_key(key(i,rand64(wrand)),rand64(wrand));
+  
+  size_t nextkey = 0;
+  BOOST_FOREACH(node n, world.nodes){
+    world.put_key(key(nextkey++,rand64(wrand)),n.vector_range_begin_.vector+1);
+  }
+  
+  while(nextkey<c.keys){
+    world.put_key(key(nextkey++,rand64(wrand)),rand64(wrand));
   }
   world.refresh_keymap(c.level);
   //world.dump(c.level);
-  world.node_dump(c.level);
+  if(c.nodedump){ world.node_dump(c.level);}
   //world.count_neighbor(10);
-  if(c.graph){
-    world.dump(c.level);
-  }
+  if(c.graph){ world.dump(c.level); }
   world.count_average_hop(c.level);
 }

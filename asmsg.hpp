@@ -32,8 +32,9 @@ struct config : public singleton<config>{
   size_t keys;
   size_t level;
   bool graph;
+  bool nodedump;
   int seed;
-  config():graph(false){};
+  config():graph(false),nodedump(false){};
   void dump()const{
     std::cout << "nodes:" << nodes << std::endl
 	      << "keys:" << keys << std::endl
@@ -79,6 +80,10 @@ struct key{
   int key_;
   std::vector<int> left_;
   std::vector<int> right_;
+  enum status{
+    not_exist = -8,
+    invalid = -14,
+  };
   membership_vector mv;
   key(){
     left_.reserve(64);
@@ -86,7 +91,7 @@ struct key{
   };
   explicit key(const int k):key_(k){}
   key(const int& k,const membership_vector& m)
-    :key_(k),left_(64,-1),right_(64,-1),mv(m){
+    :key_(k),left_(64,not_exist),right_(64,not_exist),mv(m){
     left_.reserve(64);
     left_.reserve(64);
   }
@@ -121,6 +126,9 @@ struct key{
 };
 
 struct node{
+  enum status{
+    key_found = -5,
+  };
   typedef std::vector<key> key_list;
   key_list keys_;
   membership_vector vector_range_begin_;
@@ -155,24 +163,39 @@ struct node{
     *targetkey = k;
   }
   int next_key(int level, int target)const{
+    assert(!keys_.empty());
     key_list::const_iterator lower = 
       std::lower_bound(keys_.begin(),keys_.end(),key(target));
     if(lower == keys_.end()){lower = keys_.begin();}
+
+    if(*lower == key(target)) return key_found;
     
-    if(*lower == key(target)) return -1;
+    key_list::const_iterator upper = 
+      std::upper_bound(keys_.begin(),keys_.end(),key(target));
+    if(upper == keys_.end()){upper = --keys_.end();}
     
-    key_list::const_reverse_iterator upper = 
-      std::lower_bound(keys_.rbegin(),keys_.rend(),key(target));
-    if(upper == keys_.rend()){upper = keys_.rbegin();}
-    
+    // search nearest key
+    const key* from_key;
     if(std::abs(lower->key_ - target) <= std::abs(upper->key_ - target)){
-      while(level > 0 && target < lower->right_[level])level--;
-      assert(level != -1);
-      return lower->right_[level];
+      from_key = &*lower;
     }else{
-      while(level > 0 && lower->left_[level] < target)level--;
+      from_key = &*upper;
+    }
+    
+    // search proper  level
+    if(from_key->key_ < target){
+      while(level > 0 &&
+	    (target < from_key->right_[level] ||
+	     from_key->right_[level] == key::not_exist)) level--;
       assert(level != -1);
-      return lower->left_[level];
+      assert(from_key->right_[level] != key::not_exist);
+      return from_key->right_[level];
+    }else{
+      while(level > 0 &&
+	    (from_key->left_[level] < target)) level--;
+      assert(level != -1);
+      assert(from_key->left_[level] != key::not_exist);
+      return from_key->left_[level];
     }
   }
   void key_dump(int maxlevel)const{
@@ -193,7 +216,7 @@ struct global_nodes{
   node_list nodes;
   key_map keys;
   boost::mt19937 rand;
-  global_nodes(int seed):rand(seed){}
+  global_nodes(int seed = 0):rand(seed){}
   void set_nodes(size_t targets);
   void put_key(const key& newkey, uint64_t putnode);
   void refresh_keymap(int maxlevel);
@@ -218,30 +241,32 @@ struct global_nodes{
     BOOST_FOREACH(const node& from, nodes){
       if(from.empty())continue;
       int sum=0;
-      std::cout << "node " << std::hex << from.vector_range_begin_.vector << std::endl;
       BOOST_FOREACH(const key& target, allkey){
 	const node* fromnode = &from;
 	int hop = 0;
-	std::cout <<  "=> " << target.key_ << " : ";
+       	//std::cout <<  "=> " << target.key_ << " : ";
 	while(1){
 	  int next = fromnode->next_key(maxlevel,target.key_);
-	  if(next == -1) break;
-	  std::cout << " -> " << next;
+	  if(next == node::key_found) break;
+	  
+	  //std::cout << " -> " << next;
 	  hop++;
 	  fromnode = &which_node(next);
+	  
 	}
  	sum+=hop;
-	std::cout << std::endl;
       }
       hops.push_back(static_cast<double>(sum) / allkey.size());
       cnt++;
       
-      //fprintf(stderr,"\rhop accumurate: %.1lf pct.",
-      //	      static_cast<double>(cnt) * 100 / nodes.size());
+      fprintf(stderr,"\rhop accumurate: %.1lf pct.",
+      	      static_cast<double>(cnt) * 100 / nodes.size());
     }
-    //    fprintf(stderr,"\r");
-    BOOST_FOREACH(const double& h, hops){
-      std::cout << "hop:" << h << std::endl;
+    fprintf(stderr,"\r                              \r");
+    {
+      double sum=0;
+      BOOST_FOREACH(const double& h, hops){sum += h;}
+      std::cerr << "average hops:" << std::hex << sum/nodes.size() << std::endl;
     }
   }
 private:
@@ -268,4 +293,7 @@ private:
     }
     return true;
   }
+private: // forbid method
+  global_nodes();
+  global_nodes(const global_nodes&);
 };

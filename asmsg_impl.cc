@@ -16,16 +16,20 @@ void global_nodes::key_dump(size_t maxlevel)const{
 }
 
 void global_nodes::set_nodes(size_t targets){
+  //assert(targets > 1);
   while(nodes.size() < targets-1){
     const int targetsize = targets - nodes.size();
-    for(int i=0; i<targetsize ;i++){
+    for(int i=0; i<targetsize-1 ;i++){
       nodes.push_back(node(rand64(rand)));
     }
-    sort(nodes.begin(),nodes.end());
-    unique(nodes.begin(),nodes.end());
+    std::sort(nodes.begin(),nodes.end());
+    nodes.erase(std::unique(nodes.begin(),nodes.end()),nodes.end());
   }
-  
-  nodes.insert(nodes.begin(),node(nodes[0].vector_range_begin_,nodes[0].vector_range_end_));
+  if(!nodes.empty()){
+    nodes.insert(nodes.begin(),node(0,nodes[0].vector_range_end_));
+  }else{
+    nodes.insert(nodes.begin(),node(0,0));
+  }
   assert(nodes.size() == targets);
   // assign range
   for(size_t i=0; i<nodes.size()-1; i++){
@@ -66,7 +70,7 @@ void global_nodes::refresh_keymap(int maxlevel){
     fprintf(stderr,"\rrefresh keymap: %.2lf percent...",
 	    static_cast<double>(cnt) * 100 / tmpmap.size());
   }
-  fprintf(stderr,"\r");
+  fprintf(stderr,"\r                                 \r");
     
   key_map::iterator it = tmpmap.begin();
   for(;it != tmpmap.end(); ++it){
