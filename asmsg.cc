@@ -1,4 +1,3 @@
-
 #include <stdlib.h>
 #include <assert.h>
 #include <algorithm>
@@ -20,6 +19,7 @@ int main(int argc, char** argv){
     std::string master;
     opt.add_options()
       ("help,h", "display this help")
+      ("connections,c", "count average connections")
       ("nodes,n", po::value<size_t>
        (&c.nodes)->default_value(20), "node quontum")
       ("keys,k", po::value<size_t>
@@ -40,6 +40,7 @@ int main(int argc, char** argv){
     
     if(vm.count("graph")){c.graph = true;}
     if(vm.count("dump")){c.nodedump = true;}
+    if(vm.count("connections")){c.connections = true;}
     if(c.keys < c.nodes){
       std::cerr << "key quantum must be larger than node quantum." << std::endl;
       exit(0);
@@ -62,10 +63,10 @@ int main(int argc, char** argv){
   while(nextkey<c.keys){
     world.put_key(key(nextkey++,rand64(wrand)),rand64(wrand));
   }
-  world.refresh_keymap(c.level);
+  world.organize_skipgraph(c.level);
   //world.dump(c.level);
   if(c.nodedump){ world.node_dump(c.level);}
-  //world.count_neighbor(10);
+  if(!c.connections){world.count_neighbor(10);}
   if(c.graph){ world.dump(c.level); }
   world.count_average_hop(c.level);
 }

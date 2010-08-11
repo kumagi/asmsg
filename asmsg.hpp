@@ -33,8 +33,9 @@ struct config : public singleton<config>{
   size_t level;
   bool graph;
   bool nodedump;
+  bool connections;
   int seed;
-  config():graph(false),nodedump(false){};
+  config():graph(false),nodedump(false),connections(false){};
   void dump()const{
     std::cout << "nodes:" << nodes << std::endl
 	      << "keys:" << keys << std::endl
@@ -210,7 +211,7 @@ struct node{
   }
 };
 
-struct global_nodes{
+struct global_nodes :public boost::noncopyable{
   typedef std::vector<node> node_list;
   typedef std::map<key,node* const> key_map;
   node_list nodes;
@@ -219,56 +220,15 @@ struct global_nodes{
   global_nodes(int seed = 0):rand(seed){}
   void set_nodes(size_t targets);
   void put_key(const key& newkey, uint64_t putnode);
-  void refresh_keymap(int maxlevel);
+  void organize_skipgraph(int maxlevel);
   void key_dump(size_t maxlevel)const;
   void node_dump(int maxlevel)const;
 
   void dump(const size_t maxlevel)const;
   void count_neighbor(int maxlevel)const; 
   
-  void count_average_hop(int maxlevel)const{
-    std::vector<key> allkey;
-    { // create keylist
-      typedef std::pair<key,const node*> kn;
-      allkey.reserve(keys.size());
-      BOOST_FOREACH(kn k, keys){
-	allkey.push_back(k.first);
-      }
-    }
-    std::vector<double> hops;
-    //std::vector<int> counter;
-    int cnt = 0;
-    BOOST_FOREACH(const node& from, nodes){
-      if(from.empty())continue;
-      int sum=0;
-      BOOST_FOREACH(const key& target, allkey){
-	const node* fromnode = &from;
-	int hop = 0;
-       	//std::cout <<  "=> " << target.key_ << " : ";
-	while(1){
-	  int next = fromnode->next_key(maxlevel,target.key_);
-	  if(next == node::key_found) break;
-	  
-	  //std::cout << " -> " << next;
-	  hop++;
-	  fromnode = &which_node(next);
-	  
-	}
- 	sum+=hop;
-      }
-      hops.push_back(static_cast<double>(sum) / allkey.size());
-      cnt++;
-      
-      fprintf(stderr,"\rhop accumurate: %.1lf pct.",
-      	      static_cast<double>(cnt) * 100 / nodes.size());
-    }
-    fprintf(stderr,"\r                              \r");
-    {
-      double sum=0;
-      BOOST_FOREACH(const double& h, hops){sum += h;}
-      std::cerr << "average hops:" << std::hex << sum/nodes.size() << std::endl;
-    }
-  }
+  void count_average_hop(int maxlevel)const;
+  
 private:
   const node& which_node(const int& k)const {
     assert(keys.find(key(k,0)) != keys.end());
@@ -294,6 +254,5 @@ private:
     return true;
   }
 private: // forbid method
-  global_nodes();
   global_nodes(const global_nodes&);
 };

@@ -1,6 +1,6 @@
 CXX=g++
 # -L/usr/local/lib
-OPTS=-O4 -fexceptions -g
+OPTS=-O0 -fexceptions -g
 LD=-lboost_program_options
 TEST_LD= -lgtest_main -lpthread $(LD)
 GTEST_INC= -I$(GTEST_DIR)/include -I$(GTEST_DIR)
@@ -10,11 +10,8 @@ WARNS= -W -Wall -Wextra -Wformat=2 -Wstrict-aliasing=4 -Wcast-qual -Wcast-align 
 NOTIFY=&& notify-send Test success! -i ~/themes/ok_icon.png || notify-send Test failed... -i ~/themes/ng_icon.png
 SRCS=$(HEADS) $(BODYS)
 
-#target:asmsg
-target:test_do
-
-test_do:test
-	./test $(NOTIFY)
+target:asmsg
+target:test
 
 asmsg:asmsg.o asmsg_impl.o
 	$(CXX) asmsg.o asmsg_impl.o $(LD) $(OPTS) -o $@
@@ -28,6 +25,7 @@ asmsg_impl.o:asmsg_impl.cc
 
 test:test.o gtest_main.a asmsg_impl.o
 	$(CXX) $(GTEST_INC) $^ -o $@ $(WARNS)  $(OPTS) $(TEST_LD)
+	./test $(NOTIFY)
 
 test.o:test.cc
 	$(CXX) -c test.cc -o $(OPTS) $(WARNS) -o $@
