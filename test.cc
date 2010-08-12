@@ -13,6 +13,7 @@ TEST(construct,do_nothing){
   EXPECT_EQ(world.nodes.size(), 0);
   EXPECT_EQ(world.keys.size(), 0);
 }
+
 TEST(set_nodes,1){
   for(int i=1;i<512;i++){
     global_nodes world;
@@ -98,4 +99,3 @@ TEST(organize_skipgraph,three_keys_membership_vector){
     EXPECT_EQ(key::not_exist,world.nodes[0].keys_[2].right_[i]);
   }
 }
-

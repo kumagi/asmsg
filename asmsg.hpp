@@ -34,8 +34,9 @@ struct config : public singleton<config>{
   bool graph;
   bool nodedump;
   bool connections;
+  bool hopdump;
   int seed;
-  config():graph(false),nodedump(false),connections(false){};
+  config():graph(false),nodedump(false),connections(false),hopdump(false){};
   void dump()const{
     std::cout << "nodes:" << nodes << std::endl
 	      << "keys:" << keys << std::endl
@@ -214,6 +215,7 @@ struct node{
 struct global_nodes :public boost::noncopyable{
   typedef std::vector<node> node_list;
   typedef std::map<key,node* const> key_map;
+  typedef std::pair<double,double> avg_var;
   node_list nodes;
   key_map keys;
   boost::mt19937 rand;
@@ -225,9 +227,9 @@ struct global_nodes :public boost::noncopyable{
   void node_dump(int maxlevel)const;
 
   void dump(const size_t maxlevel)const;
-  void count_neighbor(int maxlevel)const; 
+  avg_var count_neighbor(int maxlevel)const; 
   
-  void count_average_hop(int maxlevel)const;
+  avg_var count_average_hop(int maxlevel)const;
   
 private:
   const node& which_node(const int& k)const {

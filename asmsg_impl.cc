@@ -40,11 +40,12 @@ void global_nodes::set_nodes(size_t targets){
 }
 
 void global_nodes::organize_skipgraph(int maxlevel){
+  fprintf(stderr,"organizing skip graph");
   // create key-node pair list
   key_map tmpmap;
   {// count all key-node pair
     BOOST_FOREACH(node& n, nodes){
-      //std::for_each(n.keys_.begin(),n.keys_.end(),std::back_inserter(n.keys_));
+      // fixme: 
       BOOST_FOREACH(const key& k, n.keys_){
 	tmpmap.insert(std::make_pair(k,&n));
       }
@@ -52,7 +53,7 @@ void global_nodes::organize_skipgraph(int maxlevel){
   }
   
   int cnt = 0;
-  fprintf(stderr,"start refresh keymap");
+  fprintf(stderr,"\rstart refresh keymap   ");
   for(key_map::iterator kn = tmpmap.begin(); kn != tmpmap.end(); ++kn){
     key& k =  const_cast<key&>(kn->first);
     key_map::iterator it = boost::next(kn);
@@ -95,7 +96,7 @@ void global_nodes::node_dump(int maxlevel)const{
   }
 }
 
-void global_nodes::count_average_hop(int maxlevel)const{
+global_nodes::avg_var global_nodes::count_average_hop(int maxlevel)const{
   std::vector<key> allkey;
   { // create keylist
     typedef std::pair<key,const node*> kn;
@@ -113,12 +114,10 @@ void global_nodes::count_average_hop(int maxlevel)const{
     BOOST_FOREACH(const key& target, allkey){
       const node* fromnode = &from;
       int hop = 0;
-      //std::cout <<  "=> " << target.key_ << " : ";
       while(1){
 	int next = fromnode->next_key(maxlevel,target.key_);
 	if(next == node::key_found) break;
-	  
-	//std::cout << " -> " << next;
+	
 	hop++;
 	fromnode = &which_node(next);
 	  
@@ -133,19 +132,25 @@ void global_nodes::count_average_hop(int maxlevel)const{
   }
   fprintf(stderr,"\r                              \r");
   {
-    double sum=0;
-    BOOST_FOREACH(const double& h, hops){sum += h;}
-    std::cerr << "average hops:" << std::hex << sum/nodes.size() << std::endl;
+    const double sum = std::accumulate(hops.begin(),hops.end(),0.0);
+    const double avg = sum/hops.size();
+    double v = 0;
+    BOOST_FOREACH(double h, hops){
+      v += (h - avg)*(h - avg);
+    }
+    const double var = v/hops.size();
+    return std::make_pair(avg,var);
   }
+  
 }
 
 void global_nodes::dump(const size_t maxlevel)const{
+  // graphical dump skipgraph
   int linemax = 1 << maxlevel;
   std::vector<std::string> lines(linemax, std::string());
   // 1=level0 / 2,3=level1 / 4,5,6,7=level2
-  enum const_key{notexist = -2, endlist = -3};
-    
-  std::vector<int> rightlist(linemax, notexist);
+  
+  std::vector<int> rightlist(linemax, key::not_exist);
   for(int i=1;i<linemax; i++){
     char buff[16];
     sprintf(buff,"%d:",which_level(i)-1);
@@ -159,19 +164,19 @@ void global_nodes::dump(const size_t maxlevel)const{
       int level = which_level(i)-1;
       int width = get_width(k.first.key_);
       if(rightlist[i] == k.first.key_ ||
-	 (rightlist[i] == notexist && flag[level] == 0)){
+	 (rightlist[i] == key::not_exist && flag[level] == 0)){
 	char buff[16];
 	sprintf(buff,"[%d]",k.first.key_);
 	lines[i] += buff;
-	rightlist[i] = (k.first.right_[level] == -1)
-	  ? endlist : k.first.right_[level];
+	rightlist[i] = (k.first.right_[level] == key::not_exist)
+	  ? key::invalid : k.first.right_[level];
 	flag[level] = 1;
-      }else if(rightlist[i] == notexist){
+      }else if(rightlist[i] == key::not_exist){
 	width+=1;
 	for(;width>=0;--width){
 	  lines[i].append(" ");
 	}
-      }else if(rightlist[i] == endlist){
+      }else if(rightlist[i] == key::invalid){
 	// nothing to do
       }else{
 	width+=1;
@@ -187,7 +192,7 @@ void global_nodes::dump(const size_t maxlevel)const{
   }
 }
 
-void global_nodes::count_neighbor(int maxlevel)const{
+global_nodes::avg_var global_nodes::count_neighbor(int maxlevel)const{
   std::vector<int> counter;
   
   // for every nodes
@@ -239,5 +244,5 @@ void global_nodes::count_neighbor(int maxlevel)const{
     v += (c-avg)*(c-avg);
   }
   double var=v/nodes.size();
-  std::cout << "neighbors: avg=" << avg << " var=" << var << std::endl;
+  return std::make_pair(avg,var);
 }

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include "asmsg.hpp"
 
+void dump_avg_hop(const std::string& msg, const global_nodes::avg_var& av);
 
 
 int main(int argc, char** argv){
@@ -19,6 +20,7 @@ int main(int argc, char** argv){
     std::string master;
     opt.add_options()
       ("help,h", "display this help")
+      ("hops,H", "count hops mode")
       ("connections,c", "count average connections")
       ("nodes,n", po::value<size_t>
        (&c.nodes)->default_value(20), "node quontum")
@@ -41,6 +43,7 @@ int main(int argc, char** argv){
     if(vm.count("graph")){c.graph = true;}
     if(vm.count("dump")){c.nodedump = true;}
     if(vm.count("connections")){c.connections = true;}
+    if(vm.count("hops")){c.hopdump = true;}
     if(c.keys < c.nodes){
       std::cerr << "key quantum must be larger than node quantum." << std::endl;
       exit(0);
@@ -48,7 +51,7 @@ int main(int argc, char** argv){
     assert(c.nodes > 0);
     assert(c.level < 64);
   }
-  //c.dump(); // setting dump 
+  c.dump(); // setting dump 
   
   int seed = c.seed;
   global_nodes world(seed);
@@ -65,8 +68,18 @@ int main(int argc, char** argv){
   }
   world.organize_skipgraph(c.level);
   //world.dump(c.level);
-  if(c.nodedump){ world.node_dump(c.level);}
-  if(!c.connections){world.count_neighbor(10);}
+  if(c.nodedump){world.node_dump(c.level);}
+  if(c.connections){
+    global_nodes::avg_var result = world.count_neighbor(10);
+    dump_avg_hop("connections ", result);
+  }
+  if(c.hopdump){
+    global_nodes::avg_var result = world.count_average_hop(c.level);
+    dump_avg_hop("hops ", result);
+  }
   if(c.graph){ world.dump(c.level); }
-  world.count_average_hop(c.level);
+}
+
+void dump_avg_hop(const std::string& msg, const global_nodes::avg_var& av){
+  std::cout << msg.c_str() << " avg:" << av.first << " var:" << av.second << std::endl; 
 }
