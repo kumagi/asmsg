@@ -1,5 +1,19 @@
 #include "asmsg.hpp"
 #include <numeric>
+
+class calc_var{
+  const double avg;
+  double sum;
+public:
+  calc_var(const double& a):avg(a),sum(0.0){}
+  void operator()(const double& dat){
+    double diff = std::abs(dat-avg);
+    sum+=diff*diff;
+  }
+  double accum()const{ return sum;}
+};
+
+
 void global_nodes::put_key(const key& newkey, uint64_t putnode){
   node_list::iterator target_node =
     lower_bound(nodes.begin(),nodes.end(),node(putnode));
@@ -20,6 +34,7 @@ void global_nodes::set_nodes(size_t targets){
   //assert(targets > 1);
   while(nodes.size() < targets-1){
     const int targetsize = targets - nodes.size();
+    nodes.reserve(nodes.size() + targetsize);
     for(int i=0; i<targetsize-1 ;i++){
       nodes.push_back(node(rand64(rand)));
     }
@@ -39,6 +54,7 @@ void global_nodes::set_nodes(size_t targets){
   nodes.rbegin()->vector_range_end_ = 0;
 }
 
+
 void global_nodes::organize_skipgraph(int maxlevel){
   fprintf(stderr,"organizing skip graph");
   // create key-node pair list
@@ -53,7 +69,7 @@ void global_nodes::organize_skipgraph(int maxlevel){
   }
   
   int cnt = 0;
-  fprintf(stderr,"\rstart refresh keymap   ");
+  fprintf(stderr,"\rrefreshing keymap   ");
   for(key_map::iterator kn = tmpmap.begin(); kn != tmpmap.end(); ++kn){
     key& k =  const_cast<key&>(kn->first);
     key_map::iterator it = boost::next(kn);
@@ -72,11 +88,11 @@ void global_nodes::organize_skipgraph(int maxlevel){
       if(it == tmpmap.end()){break;}
     }
     cnt++;
-    fprintf(stderr,"\rrefresh keymap: %.2lf percent...",
+    fprintf(stderr,"\rorganize skip graph: %.2lf percent...",
 	    static_cast<double>(cnt) * 100 / tmpmap.size());
   }
-  fprintf(stderr,"\r                                 \r");
-    
+  fprintf(stderr,"\r                                        \r");
+  
   key_map::iterator it = tmpmap.begin();
   for(;it != tmpmap.end(); ++it){
     it->second->update_key(it->first);
@@ -127,18 +143,15 @@ global_nodes::avg_var global_nodes::count_average_hop(int maxlevel)const{
     hops.push_back(static_cast<double>(sum) / allkey.size());
     cnt++;
       
-    fprintf(stderr,"\rhop accumurate: %.1lf pct.",
+    fprintf(stderr,"\rhop accumurate: %.1lf percent....",
 	    static_cast<double>(cnt) * 100 / nodes.size());
   }
-  fprintf(stderr,"\r                              \r");
+  fprintf(stderr,"\r                                     \r");
   {
-    const double sum = std::accumulate(hops.begin(),hops.end(),0.0);
-    const double avg = sum/hops.size();
-    double v = 0;
-    BOOST_FOREACH(double h, hops){
-      v += (h - avg)*(h - avg);
-    }
-    const double var = v/hops.size();
+    const double avg = std::accumulate(hops.begin(),hops.end(),0.0) / hops.size();
+    const double var =
+      std::for_each(hops.begin(),hops.end(),calc_var(avg)).
+      accum() / hops.size();
     return std::make_pair(avg,var);
   }
   
@@ -237,12 +250,8 @@ global_nodes::avg_var global_nodes::count_neighbor(int maxlevel)const{
     counter.push_back(neighbors.size());
     //std::cout << "neighbor:" << neighbors.size() << std::endl;
   }
-  double sum = std::accumulate(counter.begin(),counter.end(),0.0);
-  double avg = sum/nodes.size();
-  double v=0;
-  BOOST_FOREACH(const int& c, counter){
-    v += (c-avg)*(c-avg);
-  }
-  double var=v/nodes.size();
+  double avg = std::accumulate(counter.begin(),counter.end(),0.0) / nodes.size();
+  double var = std::for_each(counter.begin(),counter.end(),calc_var(avg))
+    .accum() / nodes.size();
   return std::make_pair(avg,var);
 }

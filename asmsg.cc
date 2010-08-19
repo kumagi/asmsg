@@ -70,14 +70,16 @@ int main(int argc, char** argv){
   //world.dump(c.level);
   if(c.nodedump){world.node_dump(c.level);}
   if(c.connections){
-    global_nodes::avg_var result = world.count_neighbor(10);
+    global_nodes::avg_var result = world.count_neighbor(c.level);
     dump_avg_hop("connections ", result);
   }
   if(c.hopdump){
     global_nodes::avg_var result = world.count_average_hop(c.level);
     dump_avg_hop("hops ", result);
   }
-  if(c.graph){ world.dump(c.level); }
+  if(c.graph){
+    world.dump(c.level);  // just printing
+  }
 }
 
 void dump_avg_hop(const std::string& msg, const global_nodes::avg_var& av){

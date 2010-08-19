@@ -156,7 +156,6 @@ struct node{
   }
   void add_key(const key& k){
     keys_.push_back(k);
-    sort(keys_.begin(),keys_.end());
   }
   void update_key(const key& k){
     key_list::iterator targetkey 
